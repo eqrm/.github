@@ -1,0 +1,119 @@
+name: Project sweeper
+
+# Adds newly opened issues (and PRs from the repos listed in PR_REPOS) to the
+# IT-Team project across the whole org.
+#
+# Why this exists: the built-in "Auto-add to project" workflow targets exactly
+# one repository each, and GitHub caps the number of project workflows by plan
+# — Free 1, Pro 5, Team 5, Enterprise Cloud 20. eqrm is on Team, so the five
+# slots are already spent on churchtools-connector, ct-cli, ct-extensions,
+# eq-rpi-printer and non-repo-issues. There is no org-wide filter on any plan.
+#
+# Those five built-in workflows stay enabled — they give instant add on the
+# busiest repos. This sweeper is the net underneath them for the other ~28.
+# Adding an item that is already on the board is a no-op (addProjectV2ItemById
+# returns the existing item rather than duplicating it), so the overlap between
+# the two mechanisms is harmless and needs no bookkeeping.
+#
+# Repos are enumerated explicitly rather than going through the search API on
+# purpose: search is eventually consistent and its visibility depends on how
+# the app is installed, and a silent gap is exactly the failure this is meant
+# to prevent. ~35 cheap list calls per run is the price of determinism.
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub delays cron under load, which is why LOOKBACK
+    # defaults to well over the interval — a skipped run is caught by the next.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: 'How far back to look for new items. Raise it to backfill after an outage.'
+        required: false
+        default: '3'
+
+permissions: {}
+
+concurrency:
+  group: project-sweeper
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: [self-hosted, eqrm-ci]
+    steps:
+      # The org GITHUB_TOKEN cannot write to org projects and cannot read other
+      # repos, so this needs the app. The app must be installed on ALL repos and
+      # hold `organization_projects: write`. Neither was true when this was
+      # written — see "Required app setup" in this repo's README.
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: eqrm
+
+      - name: Add new items to the project
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PROJECT: '5'
+          OWNER: eqrm
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '3' }}
+          # Pull requests are only swept from the repos that already had a
+          # built-in auto-add workflow, so the board keeps the PR coverage it
+          # has today without every Renovate PR from 33 repos landing on it.
+          # The "Pull request linked to issue" / "Pull request merged" project
+          # workflows only fire for PRs that are on the board, which is why
+          # these repos want PRs and not just issues.
+          PR_REPOS: 'churchtools-connector ct-cli ct-extensions eq-rpi-printer non-repo-issues'
+        run: |
+          set -euo pipefail
+
+          since=$(date -u -d "${LOOKBACK_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "Sweeping items created since ${since}"
+
+          repos=$(gh repo list "$OWNER" --no-archived --limit 200 --json name -q '.[].name')
+
+          urls=""
+          for repo in $repos; do
+            # --state all: an issue opened and closed inside the window still
+            # belongs on the board, and `gh issue list` defaults to open only.
+            found=$(gh issue list --repo "$OWNER/$repo" --state all --limit 100 \
+                      --search "created:>=${since}" --json url -q '.[].url' 2>/dev/null || true)
+            [ -n "$found" ] && urls="${urls}${found}"$'\n'
+
+            case " $PR_REPOS " in
+              *" $repo "*)
+                found=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
+                          --search "created:>=${since}" --json url -q '.[].url' 2>/dev/null || true)
+                [ -n "$found" ] && urls="${urls}${found}"$'\n'
+                ;;
+            esac
+          done
+
+          urls=$(printf '%s' "$urls" | grep -v '^$' | sort -u || true)
+
+          if [ -z "$urls" ]; then
+            echo "Nothing new."
+            exit 0
+          fi
+
+          echo "$urls" | wc -l | xargs echo "Candidate items:"
+
+          # One failure must not strand the rest of the batch, so failures are
+          # counted and reported at the end instead of aborting the loop.
+          failed=0
+          while IFS= read -r url; do
+            if gh project item-add "$PROJECT" --owner "$OWNER" --url "$url" >/dev/null 2>&1; then
+              echo "  + $url"
+            else
+              echo "  ! failed: $url"
+              failed=$((failed + 1))
+            fi
+          done <<< "$urls"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::warning::${failed} item(s) could not be added to project ${PROJECT}"
+            exit 1
+          fi
