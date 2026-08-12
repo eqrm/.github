@@ -44,5 +44,7 @@ permission before it takes effect.
 
 - Manual backfill after an outage: run the workflow with a larger `lookback_hours`.
 - Adding an item already on the board is a no-op, so re-running is always safe.
-- Pull requests are swept only from the repos in `PR_REPOS`, to keep Renovate PRs from ~33
-  repos off the board while preserving the PR coverage the project has today.
+- Both issues and pull requests are swept from **every** non-archived repo. PRs are included
+  because the "Pull request linked to issue" and "Pull request merged" project workflows only
+  fire for PRs that are on the board. Volume is not a concern — the whole org produced 63 PRs
+  in the week this was written, 4 of them Renovate.

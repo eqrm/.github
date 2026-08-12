@@ -60,13 +60,6 @@ jobs:
           PROJECT: '5'
           OWNER: eqrm
           LOOKBACK_HOURS: ${{ inputs.lookback_hours || '3' }}
-          # Pull requests are only swept from the repos that already had a
-          # built-in auto-add workflow, so the board keeps the PR coverage it
-          # has today without every Renovate PR from 33 repos landing on it.
-          # The "Pull request linked to issue" / "Pull request merged" project
-          # workflows only fire for PRs that are on the board, which is why
-          # these repos want PRs and not just issues.
-          PR_REPOS: 'churchtools-connector ct-cli ct-extensions eq-rpi-printer non-repo-issues'
         run: |
           set -euo pipefail
 
@@ -83,13 +76,14 @@ jobs:
                       --search "created:>=${since}" --json url -q '.[].url' 2>/dev/null || true)
             [ -n "$found" ] && urls="${urls}${found}"$'\n'
 
-            case " $PR_REPOS " in
-              *" $repo "*)
-                found=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
-                          --search "created:>=${since}" --json url -q '.[].url' 2>/dev/null || true)
-                [ -n "$found" ] && urls="${urls}${found}"$'\n'
-                ;;
-            esac
+            # PRs come from every repo too. The "Pull request linked to issue"
+            # and "Pull request merged" project workflows only fire for PRs that
+            # are on the board, so leaving a repo's PRs out would quietly break
+            # that automation for it. Volume is not a concern: the whole org
+            # produced 63 PRs in the week this was written, 4 of them Renovate.
+            found=$(gh pr list --repo "$OWNER/$repo" --state all --limit 100 \
+                      --search "created:>=${since}" --json url -q '.[].url' 2>/dev/null || true)
+            [ -n "$found" ] && urls="${urls}${found}"$'\n'
           done
 
           urls=$(printf '%s' "$urls" | grep -v '^$' | sort -u || true)
