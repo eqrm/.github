@@ -1,0 +1,22 @@
+name: Feature or change request
+description: Something should exist, or work differently
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What is hard, slow or impossible today. Describe the situation rather than the solution —
+        the fix is usually easier to find once the problem is written down plainly.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already have a solution in mind, describe it here.
+  - type: textarea
+    id: who
+    attributes:
+      label: Who this affects
+      description: Who runs into this, and how often.
