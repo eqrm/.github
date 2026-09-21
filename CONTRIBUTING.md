@@ -40,9 +40,11 @@ sub-issue stays the work order.
 
 `main` is the trunk and the only integration branch. There is no long-lived development branch.
 
-- Branch off `main` as `feat/*` or `fix/*`.
+- Branch off `main`, named for what the change is: `feat/*`, `fix/*`, `docs/*`, `chore/*`.
 - Open a pull request back into `main`.
-- Pull requests are **squash-merged**: the branch collapses into one commit.
+- Pull requests **must be squash-merged**: the branch collapses into one commit. The merge-commit and
+  rebase buttons are often still enabled — do not use them. They put the branch's raw commits on the
+  trunk, which breaks both the version bumps below and the check on the next line.
 
 Because merges are squashes, `git branch --merged` does not detect landed branches — check the pull
 request state instead.
@@ -52,16 +54,25 @@ branch. A branch that lives for weeks is a merge conflict with a delivery date.
 
 ## Conventional commits
 
-The pull request title becomes the squash commit message, so **the title must be a
-[conventional commit](https://www.conventionalcommits.org/)**. Release tooling reads those messages
-to pick the version bump:
+**The pull request title must be a [conventional commit](https://www.conventionalcommits.org/)** —
+and so must every commit on the branch. Both, because which of the two becomes the squash commit
+message is a per-repository setting: under GitHub's default, a branch with a single commit lands
+under *that commit's* subject and the pull request title is discarded entirely. Writing both
+correctly is the only way to be right either way.
+
+Release tooling reads the resulting message to pick the version bump:
 
 | Prefix | Bump |
 |---|---|
 | `fix:` | patch |
 | `feat:` | minor |
-| `BREAKING CHANGE:` in the body | major |
+| `feat!:` / `fix!:`, or a `BREAKING CHANGE:` footer in a **commit message** | major |
 | `chore:`, `docs:`, `refactor:`, `test:`, `ci:` | none |
+
+The squash commit body is assembled from the branch's commit messages, not from the pull request
+description. A `BREAKING CHANGE:` footer written only in the description never reaches the commit and
+so never produces a major bump — put it in a commit message, or use the `!` marker in the title,
+which survives either setting.
 
 A bug fix ships with a **regression test** that fails before the fix and passes after. A green suite
 is not proof the bug is covered.

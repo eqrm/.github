@@ -1,6 +1,7 @@
 <!--
-The PR title becomes the squash commit message, so it must be a conventional commit,
-e.g. "fix(scope): ..." or "feat(scope): ...". See CONTRIBUTING.md.
+The PR title must be a conventional commit, e.g. "fix(scope): ..." or "feat(scope): ...".
+So must each commit on the branch — a single-commit branch squashes under the commit's own
+subject, not this title. See CONTRIBUTING.md.
 -->
 
 ## What and why
