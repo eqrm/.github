@@ -1,0 +1,37 @@
+name: Bug report
+description: Something behaves differently than it should
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report security problems here — see the repository's security policy.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: >
+        The exact path, inputs and identifiers you used. A report that can be reproduced gets
+        fixed; one that cannot usually gets guessed at.
+      placeholder: |
+        1. Go to ...
+        2. Enter ...
+        3. The page shows ...
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: When did it happen
+      description: Date and rough time, so it can be matched against the logs.
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Screenshots, error text, how often it happens, whether it used to work.
